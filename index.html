@@ -16,20 +16,14 @@
             <p class="brand__tagline">Suivi intelligent en français canadien</p>
           </div>
         </div>
-        <h1>Un tracker vivant qui inspire chaque prochaine étape.</h1>
+        <h1>Un tracker qui inspire chaque prochaine étape.</h1>
         <p>
-          PhiloSophie ajoute automatiquement des sous-tâches, propose des projets possibles avec des
-          agents IA et vous aide à avancer tout de suite, même hors ligne.
+          PhiloSophie ajoute automatiquement des sous-tâches et suggère des projets réalisables avec des
+          agents IA, pour que vous puissiez avancer avec confiance.
         </p>
         <div class="hero__actions">
-          <button class="primary" id="cta-project" type="button">Créer un projet</button>
-          <button class="secondary" id="cta-suggestions" type="button">Voir les suggestions</button>
-        </div>
-        <div class="hero__note">
-          <span>⚡</span>
-          <p>
-            Vos données restent dans votre navigateur avec la sauvegarde locale et l'exportation JSON.
-          </p>
+          <button class="primary">Créer un projet</button>
+          <button class="secondary">Voir les suggestions</button>
         </div>
       </div>
       <div class="hero__card">
@@ -61,96 +55,86 @@
     </header>
 
     <main class="grid">
-      <section class="panel" id="projects-section">
+      <section class="panel">
         <div class="panel__header">
-          <h2>Projets interactifs</h2>
-          <span class="panel__badge">Actif</span>
+          <h2>Projets en cours</h2>
+          <span class="panel__badge">Aujourd'hui</span>
         </div>
-        <form id="project-form" class="form">
-          <label>
-            Nom du projet
-            <input id="project-name" type="text" placeholder="Ex. Campagne printemps" required />
-          </label>
-          <label>
-            Objectif
-            <input
-              id="project-description"
-              type="text"
-              placeholder="Ex. Augmenter les ventes avec des agents IA"
-            />
-          </label>
-          <button class="primary" type="submit">Ajouter le projet</button>
-        </form>
-
-        <div class="divider"></div>
-
-        <form id="task-form" class="form">
-          <label>
-            Ajouter une tâche
-            <input id="task-title" type="text" placeholder="Ex. Préparer la page de vente" required />
-          </label>
-          <label>
-            Projet ciblé
-            <select id="project-select"></select>
-          </label>
-          <button class="secondary" type="submit">Ajouter la tâche</button>
-        </form>
+        <div class="project">
+          <div class="project__icon">💡</div>
+          <div class="project__details">
+            <h3>Lancement infolettre Rose Quartz</h3>
+            <p>Planifier le contenu, préparer l'inscription, automatiser la diffusion.</p>
+            <div class="project__meta">
+              <span>5 tâches</span>
+              <span>3 sous-tâches IA prêtes</span>
+            </div>
+          </div>
+        </div>
+        <div class="project">
+          <div class="project__icon">🎯</div>
+          <div class="project__details">
+            <h3>Campagne sociale pour la boutique</h3>
+            <p>Calendrier de publications, visuels, réponses rapides.</p>
+            <div class="project__meta">
+              <span>8 tâches</span>
+              <span>4 sous-tâches IA ajoutées</span>
+            </div>
+          </div>
+        </div>
       </section>
 
       <section class="panel">
         <div class="panel__header">
-          <h2>Suivi en direct</h2>
+          <h2>Sous-tâches automatiques</h2>
           <span class="panel__badge">Auto</span>
         </div>
-        <div id="project-list" class="project-list"></div>
+        <ul class="task-list">
+          <li>
+            <span class="task-icon">🧩</span>
+            <div>
+              <strong>Décomposer le script de vidéo</strong>
+              <p>Sous-tâches générées pour chaque scène.</p>
+            </div>
+          </li>
+          <li>
+            <span class="task-icon">📌</span>
+            <div>
+              <strong>Créer un plan de validation</strong>
+              <p>Checklist créée pour QA et cohérence.</p>
+            </div>
+          </li>
+          <li>
+            <span class="task-icon">📝</span>
+            <div>
+              <strong>Rédiger un courriel de suivi</strong>
+              <p>Brouillon prêt à personnaliser.</p>
+            </div>
+          </li>
+        </ul>
       </section>
 
-      <section class="panel panel--highlight" id="suggestions-section">
+      <section class="panel panel--highlight">
         <div class="panel__header">
           <h2>Suggestions inspirantes</h2>
-          <span class="panel__badge">IA</span>
+          <span class="panel__badge">Nouveau</span>
         </div>
-        <div class="suggestion-input">
-          <input
-            id="suggestion-input"
-            type="text"
-            placeholder="Ajouter une suggestion pour les agents IA"
-          />
-          <button id="add-suggestion" class="ghost" type="button">Ajouter</button>
+        <div class="suggestion">
+          <div class="suggestion__icon">✨</div>
+          <div>
+            <h3>Projet possible avec agents IA</h3>
+            <p>Créer un mini-podcast mensuel à partir de vos notes internes.</p>
+            <button class="ghost">Ajouter au plan</button>
+          </div>
         </div>
-        <ul id="suggestion-list" class="suggestion-list"></ul>
-      </section>
-
-      <section class="panel" id="drive-section">
-        <div class="panel__header">
-          <h2>Intégration Google Drive</h2>
-          <span class="panel__badge">Cloud</span>
+        <div class="suggestion">
+          <div class="suggestion__icon">🛠️</div>
+          <div>
+            <h3>Optimiser le support client</h3>
+            <p>Agents IA pour FAQ, réponses rapides et suivi.</p>
+            <button class="ghost">Préparer le flux</button>
+          </div>
         </div>
-        <p class="small-text">
-          Connectez votre compte Google Drive pour sauvegarder vos projets. Ajoutez votre client ID et
-          clé API Google, puis connectez-vous. Pour Drive, ouvrez cette page via
-          <strong>http://localhost</strong> (pas file://) afin d'autoriser la connexion.
-        </p>
-        <div class="form">
-          <label>
-            Client ID Google
-            <input id="drive-client-id" type="text" placeholder="Votre client ID OAuth" />
-          </label>
-          <label>
-            Clé API Google
-            <input id="drive-api-key" type="text" placeholder="Votre clé API" />
-          </label>
-        </div>
-        <div class="button-row">
-          <button id="connect-drive" class="primary" type="button">Connecter Drive</button>
-          <button id="save-drive" class="secondary" type="button">Sauvegarder sur Drive</button>
-          <button id="export-local" class="ghost" type="button">Exporter JSON</button>
-          <label class="ghost file-upload">
-            Importer JSON
-            <input id="import-local" type="file" accept="application/json" />
-          </label>
-        </div>
-        <p id="drive-status" class="status">Non connecté.</p>
       </section>
 
       <section class="panel">
@@ -162,14 +146,14 @@
             <p class="reminder__title">Priorité rose</p>
             <p>Bloquer 30 minutes pour valider les tâches IA de demain.</p>
           </div>
-          <button class="primary" type="button">Planifier</button>
+          <button class="primary">Planifier</button>
         </div>
         <div class="reminder">
           <div>
             <p class="reminder__title">Équipe créative</p>
             <p>Partager les nouveaux visuels avec l'équipe.</p>
           </div>
-          <button class="secondary" type="button">Partager</button>
+          <button class="secondary">Partager</button>
         </div>
       </section>
     </main>
@@ -177,10 +161,9 @@
     <footer class="footer">
       <p>PhiloSophie — Un suivi inspirant, simple et automatique pour les créateurs canadiens.</p>
       <div class="footer__actions">
-        <button class="ghost" type="button">Mode focus</button>
-        <button class="ghost" type="button">Support agent</button>
+        <button class="ghost">Mode focus</button>
+        <button class="ghost">Support agent</button>
       </div>
     </footer>
-    <script src="script.js"></script>
   </body>
 </html>
