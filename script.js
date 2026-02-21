@@ -1,442 +1,360 @@
-const STORAGE_KEY = "philosophie-state";
-
-const defaultState = {
-  projects: [
-    {
-      id: crypto.randomUUID(),
-      name: "Lancement infolettre Rose Quartz",
-      description: "Planifier le contenu, préparer l'inscription, automatiser la diffusion.",
-      tasks: [
-        {
-          id: crypto.randomUUID(),
-          title: "Écrire les 3 premiers sujets",
-          completed: false,
-          subtasks: [
-            { id: crypto.randomUUID(), title: "Lister les angles possibles", completed: true },
-            { id: crypto.randomUUID(), title: "Valider le ton de marque", completed: false },
-          ],
-        },
-      ],
-    },
-  ],
-  suggestions: [
-    "Créer un mini-podcast mensuel à partir des notes internes",
-    "Optimiser le support client avec FAQ, réponses rapides et suivi",
-    "Mettre en place un tableau de bord des ventes hebdo",
-  ],
-  driveConfig: {
-    clientId: "",
-    apiKey: "",
-  },
-};
-
-let state = loadState();
-let driveTokenClient = null;
-let driveAccessToken = "";
+const STORAGE_KEY = "questboard-users";
+const SESSION_KEY = "questboard-active-user";
 
 const elements = {
-  ctaProject: document.querySelector("#cta-project"),
-  ctaSuggestions: document.querySelector("#cta-suggestions"),
-  projectsSection: document.querySelector("#projects-section"),
-  suggestionsSection: document.querySelector("#suggestions-section"),
-  projectSelect: document.querySelector("#project-select"),
-  projectList: document.querySelector("#project-list"),
-  projectForm: document.querySelector("#project-form"),
-  taskForm: document.querySelector("#task-form"),
-  taskInput: document.querySelector("#task-title"),
-  projectNameInput: document.querySelector("#project-name"),
-  projectDescriptionInput: document.querySelector("#project-description"),
+  loginForm: document.querySelector("#login-form"),
+  usernameInput: document.querySelector("#username-input"),
+  activeUser: document.querySelector("#active-user"),
+  activeUserText: document.querySelector("#active-user-text"),
+  logoutBtn: document.querySelector("#logout-btn"),
+  questForm: document.querySelector("#quest-form"),
+  questTitle: document.querySelector("#quest-title"),
+  questDetail: document.querySelector("#quest-detail"),
+  questList: document.querySelector("#quest-list"),
+  categoryList: document.querySelector("#category-list"),
   suggestionList: document.querySelector("#suggestion-list"),
-  suggestionInput: document.querySelector("#suggestion-input"),
-  addSuggestionBtn: document.querySelector("#add-suggestion"),
-  driveClientId: document.querySelector("#drive-client-id"),
-  driveApiKey: document.querySelector("#drive-api-key"),
-  driveStatus: document.querySelector("#drive-status"),
-  connectDrive: document.querySelector("#connect-drive"),
-  saveDrive: document.querySelector("#save-drive"),
-  exportLocal: document.querySelector("#export-local"),
-  importLocal: document.querySelector("#import-local"),
+  xpValue: document.querySelector("#xp-value"),
+  levelValue: document.querySelector("#level-value"),
+  completedValue: document.querySelector("#completed-value"),
+  activeQuestsValue: document.querySelector("#active-quests-value"),
+  xpBar: document.querySelector("#xp-bar"),
+  mapStatus: document.querySelector("#map-status"),
+  mapCanvas: document.querySelector("#map-canvas"),
 };
 
-function loadState() {
-  const raw = localStorage.getItem(STORAGE_KEY);
-  if (!raw) return structuredClone(defaultState);
+const users = loadUsers();
+let currentUser = localStorage.getItem(SESSION_KEY) || "";
+const map = {
+  ctx: elements.mapCanvas.getContext("2d"),
+  heroX: 24,
+  heroY: 24,
+  targetX: 24,
+  targetY: 24,
+  mode: "camp",
+  tick: 0,
+};
+
+function createUserState(username) {
+  return {
+    username,
+    xp: 0,
+    completedCount: 0,
+    quests: [],
+    categories: {},
+    suggestions: [
+      "Break your biggest quest into 2 subtasks.",
+      "Schedule a 25-minute focus sprint.",
+      "Archive one completed quest for clarity.",
+    ],
+  };
+}
+
+function loadUsers() {
   try {
-    return JSON.parse(raw);
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : {};
   } catch {
-    return structuredClone(defaultState);
+    return {};
   }
 }
 
-function saveState() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+function saveUsers() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(users));
 }
 
-function renderProjects() {
-  elements.projectSelect.innerHTML = "";
-  state.projects.forEach((project, index) => {
-    const option = document.createElement("option");
-    option.value = project.id;
-    option.textContent = `${project.name} (${project.tasks.length} tâches)`;
-    if (index === 0) option.selected = true;
-    elements.projectSelect.append(option);
-  });
-
-  elements.projectList.innerHTML = "";
-  state.projects.forEach((project) => {
-    const article = document.createElement("article");
-    article.className = "project-card";
-
-    const header = document.createElement("div");
-    header.className = "project-card__header";
-    header.innerHTML = `
-      <div>
-        <h3>${project.name}</h3>
-        <p>${project.description}</p>
-      </div>
-      <span class="pill">${project.tasks.length} tâches</span>
-    `;
-
-    const taskList = document.createElement("ul");
-    taskList.className = "task-list";
-
-    project.tasks.forEach((task) => {
-      const item = document.createElement("li");
-      item.className = "task-item";
-      item.innerHTML = `
-        <label>
-          <input type="checkbox" ${task.completed ? "checked" : ""} data-task-id="${task.id}" data-project-id="${project.id}" />
-          <span>${task.title}</span>
-        </label>
-        <ul class="subtask-list">
-          ${task.subtasks
-            .map(
-              (sub) => `
-                <li>
-                  <label>
-                    <input type="checkbox" ${sub.completed ? "checked" : ""} data-subtask-id="${sub.id}" data-task-id="${task.id}" data-project-id="${project.id}" />
-                    <span>${sub.title}</span>
-                  </label>
-                </li>
-              `
-            )
-            .join("")}
-        </ul>
-      `;
-      taskList.append(item);
-    });
-
-    article.append(header, taskList);
-    elements.projectList.append(article);
-  });
+function getLevel(xp) {
+  return Math.floor(xp / 120) + 1;
 }
 
-function renderSuggestions() {
-  elements.suggestionList.innerHTML = "";
-  state.suggestions.forEach((suggestion, index) => {
+function xpIntoLevel(xp) {
+  return xp % 120;
+}
+
+function categorizeQuest(title, detail) {
+  const combined = `${title} ${detail}`.toLowerCase();
+  if (/(code|bug|deploy|api|app|test)/.test(combined)) return "Engineering";
+  if (/(write|blog|post|design|video|content)/.test(combined)) return "Creative";
+  if (/(client|meeting|email|crm|sales|support)/.test(combined)) return "Operations";
+  if (/(gym|health|sleep|run|meal)/.test(combined)) return "Personal";
+  return "General";
+}
+
+function suggestSubtasks(quest) {
+  return [
+    `Clarify the first concrete step for "${quest.title}".`,
+    `Estimate time needed and choose a start block.`,
+    `Define done criteria for this quest.`,
+  ];
+}
+
+function buildNpcSuggestions(user) {
+  const open = user.quests.filter((quest) => !quest.completed);
+  const fresh = [];
+  if (open.length === 0) {
+    fresh.push("Add a new main quest to keep momentum.");
+  } else {
+    const first = open[0];
+    fresh.push(`Subquests for "${first.title}": ${suggestSubtasks(first).join(" ")}`);
+    fresh.push(`Focus category: ${first.category}. Complete one quest there for bonus confidence.`);
+  }
+  if (open.length > 3) {
+    fresh.push("You have many active quests. Complete one quick-win quest for easy XP.");
+  }
+  return [...fresh, ...user.suggestions].slice(0, 6);
+}
+
+function ensureUser() {
+  if (!currentUser) return null;
+  if (!users[currentUser]) {
+    users[currentUser] = createUserState(currentUser);
+    saveUsers();
+  }
+  return users[currentUser];
+}
+
+function addQuest(title, detail) {
+  const user = ensureUser();
+  if (!user) return;
+  const category = categorizeQuest(title, detail);
+  const quest = {
+    id: crypto.randomUUID(),
+    title,
+    detail,
+    category,
+    completed: false,
+    xpReward: 30 + Math.min(detail.length, 120) / 6,
+    createdAt: Date.now(),
+  };
+  user.quests.unshift(quest);
+  user.categories[category] = (user.categories[category] || 0) + 1;
+  user.suggestions = buildNpcSuggestions(user);
+  saveUsers();
+  render();
+}
+
+function toggleQuest(questId) {
+  const user = ensureUser();
+  if (!user) return;
+  const quest = user.quests.find((item) => item.id === questId);
+  if (!quest) return;
+  const wasCompleted = quest.completed;
+  quest.completed = !quest.completed;
+  if (!wasCompleted && quest.completed) {
+    user.xp += Math.floor(quest.xpReward);
+    user.completedCount += 1;
+    map.mode = "battle";
+  } else if (wasCompleted && !quest.completed) {
+    user.xp = Math.max(0, user.xp - Math.floor(quest.xpReward));
+    user.completedCount = Math.max(0, user.completedCount - 1);
+  }
+  user.suggestions = buildNpcSuggestions(user);
+  saveUsers();
+  render();
+}
+
+function renderAuth() {
+  const user = ensureUser();
+  if (!user) {
+    elements.activeUser.classList.add("hidden");
+    return;
+  }
+  elements.activeUser.classList.remove("hidden");
+  elements.activeUserText.textContent = `Hero: ${user.username}`;
+}
+
+function renderStats(user) {
+  const level = getLevel(user.xp);
+  const inLevel = xpIntoLevel(user.xp);
+  const openCount = user.quests.filter((quest) => !quest.completed).length;
+
+  elements.levelValue.textContent = String(level);
+  elements.xpValue.textContent = String(user.xp);
+  elements.completedValue.textContent = String(user.completedCount);
+  elements.activeQuestsValue.textContent = String(openCount);
+  elements.xpBar.style.width = `${(inLevel / 120) * 100}%`;
+
+  map.mode = user.completedCount > 0 ? "village" : "camp";
+}
+
+function renderQuests(user) {
+  elements.questList.innerHTML = "";
+  if (user.quests.length === 0) {
+    elements.questList.innerHTML = "<li class='quest-item'>No quests yet. Start your first adventure.</li>";
+    return;
+  }
+  user.quests.forEach((quest) => {
     const li = document.createElement("li");
+    li.className = "quest-item";
     li.innerHTML = `
-      <span>✨ ${suggestion}</span>
-      <button class="ghost" data-suggestion-index="${index}">Ajouter</button>
+      <div class="quest-item__top">
+        <label>
+          <input type="checkbox" data-quest-id="${quest.id}" ${quest.completed ? "checked" : ""} />
+          <strong>${quest.title}</strong>
+        </label>
+        <span>${Math.floor(quest.xpReward)} XP</span>
+      </div>
+      <small>${quest.detail || "No extra detail."}</small>
+      <div class="quest-item__meta">
+        <span class="badge">${quest.category}</span>
+        <span class="badge">${quest.completed ? "Completed" : "Active"}</span>
+      </div>
     `;
+    elements.questList.append(li);
+  });
+}
+
+function renderCategories(user) {
+  elements.categoryList.innerHTML = "";
+  const categories = Object.entries(user.categories);
+  if (categories.length === 0) {
+    elements.categoryList.innerHTML = "<p>Categories auto-populate as quests are added.</p>";
+    return;
+  }
+  categories
+    .sort((a, b) => b[1] - a[1])
+    .forEach(([name, count]) => {
+      const card = document.createElement("div");
+      card.className = "category-card";
+      card.innerHTML = `<strong>${name}</strong><p>${count} quests assigned</p>`;
+      elements.categoryList.append(card);
+    });
+}
+
+function renderSuggestions(user) {
+  elements.suggestionList.innerHTML = "";
+  user.suggestions.forEach((text) => {
+    const li = document.createElement("li");
+    li.className = "suggestion-item";
+    li.textContent = `🧙 ${text}`;
     elements.suggestionList.append(li);
   });
 }
 
-function updateDriveInputs() {
-  elements.driveClientId.value = state.driveConfig.clientId;
-  elements.driveApiKey.value = state.driveConfig.apiKey;
+function render() {
+  const user = ensureUser();
+  renderAuth();
+  if (!user) return;
+  renderStats(user);
+  renderQuests(user);
+  renderCategories(user);
+  renderSuggestions(user);
 }
 
-function ensureLocalhostForDrive() {
-  if (window.location.protocol === "file:") {
-    elements.driveStatus.textContent =
-      "Google Drive nécessite http://localhost. Lancez un petit serveur local puis rechargez.";
-    return false;
-  }
-  return true;
-}
-
-function scrollToSection(section) {
-  if (!section) return;
-  section.scrollIntoView({ behavior: "smooth", block: "start" });
-}
-
-function addProject(name, description) {
-  state.projects.unshift({
-    id: crypto.randomUUID(),
-    name,
-    description,
-    tasks: [],
-  });
-  saveState();
-  renderProjects();
-}
-
-function addTaskToProject(projectId, title) {
-  const project = state.projects.find((item) => item.id === projectId);
-  if (!project) return;
-  project.tasks.unshift({
-    id: crypto.randomUUID(),
-    title,
-    completed: false,
-    subtasks: generateSubtasks(title),
-  });
-  saveState();
-  renderProjects();
-}
-
-function generateSubtasks(title) {
-  const templates = [
-    `Définir l'objectif pour "${title}"`,
-    `Créer une checklist rapide pour "${title}"`,
-    `Préparer un brouillon pour "${title}"`,
-  ];
-  return templates.map((text) => ({
-    id: crypto.randomUUID(),
-    title: text,
-    completed: false,
-  }));
-}
-
-function toggleTask(projectId, taskId, completed) {
-  const project = state.projects.find((item) => item.id === projectId);
-  if (!project) return;
-  const task = project.tasks.find((item) => item.id === taskId);
-  if (!task) return;
-  task.completed = completed;
-  if (completed) {
-    task.subtasks = task.subtasks.map((sub) => ({ ...sub, completed: true }));
-  }
-  saveState();
-  renderProjects();
-}
-
-function toggleSubtask(projectId, taskId, subtaskId, completed) {
-  const project = state.projects.find((item) => item.id === projectId);
-  if (!project) return;
-  const task = project.tasks.find((item) => item.id === taskId);
-  if (!task) return;
-  const subtask = task.subtasks.find((item) => item.id === subtaskId);
-  if (!subtask) return;
-  subtask.completed = completed;
-  task.completed = task.subtasks.every((item) => item.completed);
-  saveState();
-  renderProjects();
-}
-
-function addSuggestion(text) {
-  if (!text.trim()) return;
-  state.suggestions.unshift(text.trim());
-  saveState();
-  renderSuggestions();
-}
-
-function addSuggestionToProject(index) {
-  const projectId = elements.projectSelect.value;
-  if (!projectId) return;
-  const suggestion = state.suggestions[index];
-  if (!suggestion) return;
-  addTaskToProject(projectId, suggestion);
-}
-
-function handleProjectForm(event) {
+function login(event) {
   event.preventDefault();
-  const name = elements.projectNameInput.value.trim();
-  const description = elements.projectDescriptionInput.value.trim();
-  if (!name) return;
-  addProject(name, description || "Projet inspiré par PhiloSophie");
-  elements.projectNameInput.value = "";
-  elements.projectDescriptionInput.value = "";
+  const username = elements.usernameInput.value.trim().toLowerCase();
+  if (!username) return;
+  currentUser = username;
+  localStorage.setItem(SESSION_KEY, currentUser);
+  if (!users[currentUser]) users[currentUser] = createUserState(currentUser);
+  saveUsers();
+  elements.usernameInput.value = "";
+  render();
 }
 
-function handleTaskForm(event) {
+function logout() {
+  currentUser = "";
+  localStorage.removeItem(SESSION_KEY);
+  elements.activeUser.classList.add("hidden");
+  elements.questList.innerHTML = "<li class='quest-item'>Log in to see quests.</li>";
+  elements.categoryList.innerHTML = "<p>Log in to view categories.</p>";
+  elements.suggestionList.innerHTML = "<li class='suggestion-item'>Log in for AI companion guidance.</li>";
+  elements.levelValue.textContent = "1";
+  elements.xpValue.textContent = "0";
+  elements.completedValue.textContent = "0";
+  elements.activeQuestsValue.textContent = "0";
+  elements.xpBar.style.width = "0%";
+}
+
+function onQuestSubmit(event) {
   event.preventDefault();
-  const title = elements.taskInput.value.trim();
+  if (!currentUser) return;
+  const title = elements.questTitle.value.trim();
+  const detail = elements.questDetail.value.trim();
   if (!title) return;
-  addTaskToProject(elements.projectSelect.value, title);
-  elements.taskInput.value = "";
+  addQuest(title, detail);
+  elements.questTitle.value = "";
+  elements.questDetail.value = "";
 }
 
-function handleProjectClick(event) {
-  const target = event.target;
-  if (target.matches("input[data-task-id]")) {
-    toggleTask(target.dataset.projectId, target.dataset.taskId, target.checked);
-  }
-  if (target.matches("input[data-subtask-id]")) {
-    toggleSubtask(
-      target.dataset.projectId,
-      target.dataset.taskId,
-      target.dataset.subtaskId,
-      target.checked
-    );
-  }
+function onQuestListChange(event) {
+  const input = event.target;
+  if (!input.matches("input[data-quest-id]")) return;
+  toggleQuest(input.dataset.questId);
 }
 
-function handleSuggestionClick(event) {
-  const button = event.target.closest("button[data-suggestion-index]");
-  if (!button) return;
-  addSuggestionToProject(Number(button.dataset.suggestionIndex));
+function drawTile(x, y, color) {
+  map.ctx.fillStyle = color;
+  map.ctx.fillRect(x, y, 20, 20);
 }
 
-function handleAddSuggestion() {
-  addSuggestion(elements.suggestionInput.value);
-  elements.suggestionInput.value = "";
+function drawHero(x, y, frame) {
+  const ctx = map.ctx;
+  ctx.fillStyle = "#e9f0ff";
+  ctx.fillRect(x + 6, y + 3, 8, 8);
+  ctx.fillStyle = "#2f6fff";
+  ctx.fillRect(x + 5, y + 11, 10, 7);
+  ctx.fillStyle = frame % 20 < 10 ? "#f8c85b" : "#ff8da8";
+  ctx.fillRect(x + 8, y + 0, 4, 3);
 }
 
-function updateDriveConfig() {
-  state.driveConfig.clientId = elements.driveClientId.value.trim();
-  state.driveConfig.apiKey = elements.driveApiKey.value.trim();
-  saveState();
-}
+function renderMapScene() {
+  const ctx = map.ctx;
+  const { width, height } = elements.mapCanvas;
+  ctx.clearRect(0, 0, width, height);
 
-async function loadDriveSdk() {
-  if (window.gapi) return;
-  await new Promise((resolve) => {
-    const script = document.createElement("script");
-    script.src = "https://apis.google.com/js/api.js";
-    script.onload = resolve;
-    document.body.append(script);
-  });
-}
-
-async function loadIdentitySdk() {
-  if (window.google?.accounts?.oauth2) return;
-  await new Promise((resolve) => {
-    const script = document.createElement("script");
-    script.src = "https://accounts.google.com/gsi/client";
-    script.onload = resolve;
-    document.body.append(script);
-  });
-}
-
-async function initDriveClient() {
-  if (!ensureLocalhostForDrive()) return false;
-  const { clientId, apiKey } = state.driveConfig;
-  if (!clientId || !apiKey) {
-    elements.driveStatus.textContent = "Ajoutez votre client ID et votre clé API pour connecter Google Drive.";
-    return false;
-  }
-
-  await loadDriveSdk();
-  await loadIdentitySdk();
-
-  await new Promise((resolve) => window.gapi.load("client", resolve));
-  await window.gapi.client.init({
-    apiKey,
-    discoveryDocs: ["https://www.googleapis.com/discovery/v1/apis/drive/v3/rest"],
-  });
-
-  driveTokenClient = window.google.accounts.oauth2.initTokenClient({
-    client_id: clientId,
-    scope: "https://www.googleapis.com/auth/drive.file",
-    callback: (tokenResponse) => {
-      driveAccessToken = tokenResponse.access_token;
-      elements.driveStatus.textContent = "Connecté à Google Drive ✅";
-    },
-  });
-
-  elements.driveStatus.textContent = "Prêt à se connecter à Google Drive.";
-  return true;
-}
-
-async function connectDrive() {
-  if (!ensureLocalhostForDrive()) return;
-  updateDriveConfig();
-  const ready = await initDriveClient();
-  if (!ready || !driveTokenClient) return;
-  driveTokenClient.requestAccessToken({ prompt: "consent" });
-}
-
-async function saveToDrive() {
-  if (!ensureLocalhostForDrive()) return;
-  if (!driveAccessToken) {
-    elements.driveStatus.textContent = "Connectez-vous avant de sauvegarder.";
-    return;
-  }
-
-  const fileContent = JSON.stringify(state, null, 2);
-  const metadata = {
-    name: `philosophie-${new Date().toISOString().slice(0, 10)}.json`,
-    mimeType: "application/json",
-  };
-  const boundary = "philo-boundary";
-  const multipartRequestBody =
-    `--${boundary}\r\n` +
-    "Content-Type: application/json; charset=UTF-8\r\n\r\n" +
-    JSON.stringify(metadata) +
-    `\r\n--${boundary}\r\n` +
-    "Content-Type: application/json\r\n\r\n" +
-    fileContent +
-    `\r\n--${boundary}--`;
-
-  const response = await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${driveAccessToken}`,
-      "Content-Type": `multipart/related; boundary=${boundary}`,
-    },
-    body: multipartRequestBody,
-  });
-
-  if (response.ok) {
-    elements.driveStatus.textContent = "Sauvegarde envoyée à Google Drive ✅";
-  } else {
-    elements.driveStatus.textContent = "Échec de la sauvegarde. Vérifiez les autorisations.";
-  }
-}
-
-function exportLocal() {
-  const blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
-  const link = document.createElement("a");
-  link.href = URL.createObjectURL(blob);
-  link.download = `philosophie-${new Date().toISOString().slice(0, 10)}.json`;
-  link.click();
-  URL.revokeObjectURL(link.href);
-}
-
-function importLocal(event) {
-  const file = event.target.files?.[0];
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = () => {
-    try {
-      const parsed = JSON.parse(reader.result);
-      if (!parsed.projects || !parsed.suggestions) {
-        throw new Error("Format invalide");
-      }
-      state = { ...state, ...parsed };
-      saveState();
-      renderProjects();
-      renderSuggestions();
-      updateDriveInputs();
-      elements.driveStatus.textContent = "Données importées ✅";
-    } catch {
-      elements.driveStatus.textContent = "Importation échouée. Vérifiez le fichier JSON.";
+  for (let y = 0; y < height; y += 20) {
+    for (let x = 0; x < width; x += 20) {
+      const grass = (x / 20 + y / 20) % 2 === 0 ? "#2d5a3d" : "#336648";
+      drawTile(x, y, grass);
     }
-  };
-  reader.readAsText(file);
-  event.target.value = "";
+  }
+
+  for (let i = 0; i < 4; i += 1) {
+    drawTile(300 + i * 20, 40, "#8f6a42");
+    drawTile(300 + i * 20, 60, "#b08453");
+  }
+  drawTile(70, 170, "#7d2f34");
+  drawTile(90, 170, "#a1373f");
+
+  const dx = map.targetX - map.heroX;
+  const dy = map.targetY - map.heroY;
+  map.heroX += Math.sign(dx) * Math.min(Math.abs(dx), 1.2);
+  map.heroY += Math.sign(dy) * Math.min(Math.abs(dy), 1.2);
+
+  drawHero(map.heroX, map.heroY, map.tick);
+
+  if (map.mode === "battle") {
+    ctx.fillStyle = "#ff5f6d";
+    ctx.fillRect(95, 174, 6, 6);
+    elements.mapStatus.textContent = "The hero is attacking enemies after your completed quests!";
+    map.targetX = 80;
+    map.targetY = 165;
+    map.mode = "village";
+  } else if (map.mode === "village") {
+    elements.mapStatus.textContent = "The hero marches toward the village as your XP grows.";
+    map.targetX = 320;
+    map.targetY = 40;
+  } else {
+    elements.mapStatus.textContent = "The hero waits at camp for your next quest.";
+    map.targetX = 24;
+    map.targetY = 24;
+  }
+
+  map.tick += 1;
+  requestAnimationFrame(renderMapScene);
 }
 
 function init() {
-  renderProjects();
-  renderSuggestions();
-  updateDriveInputs();
-  elements.ctaProject.addEventListener("click", () => scrollToSection(elements.projectsSection));
-  elements.ctaSuggestions.addEventListener("click", () => scrollToSection(elements.suggestionsSection));
-  elements.projectForm.addEventListener("submit", handleProjectForm);
-  elements.taskForm.addEventListener("submit", handleTaskForm);
-  elements.projectList.addEventListener("change", handleProjectClick);
-  elements.suggestionList.addEventListener("click", handleSuggestionClick);
-  elements.addSuggestionBtn.addEventListener("click", handleAddSuggestion);
-  elements.driveClientId.addEventListener("blur", updateDriveConfig);
-  elements.driveApiKey.addEventListener("blur", updateDriveConfig);
-  elements.connectDrive.addEventListener("click", connectDrive);
-  elements.saveDrive.addEventListener("click", saveToDrive);
-  elements.exportLocal.addEventListener("click", exportLocal);
-  elements.importLocal.addEventListener("change", importLocal);
-  ensureLocalhostForDrive();
+  elements.loginForm.addEventListener("submit", login);
+  elements.logoutBtn.addEventListener("click", logout);
+  elements.questForm.addEventListener("submit", onQuestSubmit);
+  elements.questList.addEventListener("change", onQuestListChange);
+
+  if (!currentUser) logout();
+  else render();
+
+  renderMapScene();
 }
 
 init();
