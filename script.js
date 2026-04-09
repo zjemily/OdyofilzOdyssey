@@ -92,6 +92,55 @@ function categorizeQuest(title, detail) {
 function suggestSubtasks(quest) {
   return [
     `Clarify the first concrete step for "${quest.title}".`,
+    `Estimate time needed and choose a start block.`,
+    `Define done criteria for this quest.`,
+  ];
+}
+
+function buildNpcSuggestions(user) {
+  const open = user.quests.filter((quest) => !quest.completed);
+  const fresh = [];
+  if (open.length === 0) {
+    fresh.push("Add a new main quest to keep momentum.");
+  } else {
+    const first = open[0];
+    fresh.push(`Subquests for "${first.title}": ${suggestSubtasks(first).join(" ")}`);
+    fresh.push(`Focus category: ${first.category}. Complete one quest there for bonus confidence.`);
+  }
+  if (open.length > 3) {
+    fresh.push("You have many active quests. Complete one quick-win quest for easy XP.");
+  }
+  return [...fresh, ...user.suggestions].slice(0, 6);
+}
+
+function ensureUser() {
+  if (!currentUser) return null;
+  if (!users[currentUser]) {
+    users[currentUser] = createUserState(currentUser);
+    saveUsers();
+  }
+  return users[currentUser];
+}
+
+function addQuest(title, detail) {
+}
+
+function xpIntoLevel(xp) {
+  return xp % 120;
+}
+
+function categorizeQuest(title, detail) {
+  const combined = `${title} ${detail}`.toLowerCase();
+  if (/(code|bug|deploy|api|app|test)/.test(combined)) return "Engineering";
+  if (/(write|blog|post|design|video|content)/.test(combined)) return "Creative";
+  if (/(client|meeting|email|crm|sales|support)/.test(combined)) return "Operations";
+  if (/(gym|health|sleep|run|meal)/.test(combined)) return "Personal";
+  return "General";
+}
+
+function suggestSubtasks(quest) {
+  return [
+    `Clarify the first concrete step for "${quest.title}".`,
     "Estimate time needed and choose a start block.",
     "Define done criteria for this quest.",
   ];
@@ -149,6 +198,8 @@ function addQuest(title, detail, priority, dueDate) {
     title,
     detail,
     category,
+    completed: false,
+    xpReward: 30 + Math.min(detail.length, 120) / 6,
     priority,
     dueDate,
     completed: false,
@@ -160,6 +211,179 @@ function addQuest(title, detail, priority, dueDate) {
   user.suggestions = buildNpcSuggestions(user);
   saveUsers();
   render();
+}
+
+function toggleQuest(questId) {
+  const user = ensureUser();
+  if (!user) return;
+  const quest = user.quests.find((item) => item.id === questId);
+  if (!quest) return;
+  const wasCompleted = quest.completed;
+  quest.completed = !quest.completed;
+  if (!wasCompleted && quest.completed) {
+    user.xp += Math.floor(quest.xpReward);
+    user.completedCount += 1;
+    map.mode = "battle";
+  } else if (wasCompleted && !quest.completed) {
+    user.xp = Math.max(0, user.xp - Math.floor(quest.xpReward));
+    user.completedCount = Math.max(0, user.completedCount - 1);
+  }
+  user.suggestions = buildNpcSuggestions(user);
+  saveUsers();
+  render();
+}
+
+function renderAuth() {
+  const user = ensureUser();
+  if (!user) {
+    elements.activeUser.classList.add("hidden");
+    return;
+  }
+  elements.activeUser.classList.remove("hidden");
+  elements.activeUserText.textContent = `Hero: ${user.username}`;
+}
+
+function renderStats(user) {
+  const level = getLevel(user.xp);
+  const inLevel = xpIntoLevel(user.xp);
+  const openCount = user.quests.filter((quest) => !quest.completed).length;
+
+  elements.levelValue.textContent = String(level);
+  elements.xpValue.textContent = String(user.xp);
+  elements.completedValue.textContent = String(user.completedCount);
+  elements.activeQuestsValue.textContent = String(openCount);
+  elements.xpBar.style.width = `${(inLevel / 120) * 100}%`;
+
+  map.mode = user.completedCount > 0 ? "village" : "camp";
+}
+
+function renderQuests(user) {
+  elements.questList.innerHTML = "";
+  if (user.quests.length === 0) {
+    elements.questList.innerHTML = "<li class='quest-item'>No quests yet. Start your first adventure.</li>";
+    return;
+  }
+  user.quests.forEach((quest) => {
+    const li = document.createElement("li");
+    li.className = "quest-item";
+    li.innerHTML = `
+      <div class="quest-item__top">
+        <label>
+          <input type="checkbox" data-quest-id="${quest.id}" ${quest.completed ? "checked" : ""} />
+          <strong>${quest.title}</strong>
+        </label>
+        <span>${Math.floor(quest.xpReward)} XP</span>
+      </div>
+      <small>${quest.detail || "No extra detail."}</small>
+      <div class="quest-item__meta">
+        <span class="badge">${quest.category}</span>
+        <span class="badge">${quest.completed ? "Completed" : "Active"}</span>
+      </div>
+    `;
+    elements.questList.append(li);
+  });
+}
+
+function renderCategories(user) {
+  elements.categoryList.innerHTML = "";
+  const categories = Object.entries(user.categories);
+  if (categories.length === 0) {
+    elements.categoryList.innerHTML = "<p>Categories auto-populate as quests are added.</p>";
+    return;
+  }
+  categories
+    .sort((a, b) => b[1] - a[1])
+    .forEach(([name, count]) => {
+      const card = document.createElement("div");
+      card.className = "category-card";
+      card.innerHTML = `<strong>${name}</strong><p>${count} quests assigned</p>`;
+      elements.categoryList.append(card);
+    });
+}
+
+function renderSuggestions(user) {
+  elements.suggestionList.innerHTML = "";
+  user.suggestions.forEach((text) => {
+    const li = document.createElement("li");
+    li.className = "suggestion-item";
+    li.textContent = `🧙 ${text}`;
+    elements.suggestionList.append(li);
+  });
+}
+
+function render() {
+  const user = ensureUser();
+  renderAuth();
+  if (!user) return;
+  renderStats(user);
+  renderQuests(user);
+  renderCategories(user);
+  renderSuggestions(user);
+}
+
+function login(event) {
+  event.preventDefault();
+  const username = elements.usernameInput.value.trim().toLowerCase();
+  if (!username) return;
+  currentUser = username;
+  localStorage.setItem(SESSION_KEY, currentUser);
+  if (!users[currentUser]) users[currentUser] = createUserState(currentUser);
+  saveUsers();
+  elements.usernameInput.value = "";
+  render();
+}
+
+function logout() {
+  currentUser = "";
+  localStorage.removeItem(SESSION_KEY);
+  elements.activeUser.classList.add("hidden");
+  elements.questList.innerHTML = "<li class='quest-item'>Log in to see quests.</li>";
+  elements.categoryList.innerHTML = "<p>Log in to view categories.</p>";
+  elements.suggestionList.innerHTML = "<li class='suggestion-item'>Log in for AI companion guidance.</li>";
+  elements.levelValue.textContent = "1";
+  elements.xpValue.textContent = "0";
+  elements.completedValue.textContent = "0";
+  elements.activeQuestsValue.textContent = "0";
+  elements.xpBar.style.width = "0%";
+}
+
+function onQuestSubmit(event) {
+  event.preventDefault();
+  if (!currentUser) return;
+  const title = elements.questTitle.value.trim();
+  const detail = elements.questDetail.value.trim();
+  if (!title) return;
+  addQuest(title, detail);
+  elements.questTitle.value = "";
+  elements.questDetail.value = "";
+}
+
+function onQuestListChange(event) {
+  const input = event.target;
+  if (!input.matches("input[data-quest-id]")) return;
+  toggleQuest(input.dataset.questId);
+}
+
+function drawTile(x, y, color) {
+  map.ctx.fillStyle = color;
+  map.ctx.fillRect(x, y, 20, 20);
+}
+
+function drawHero(x, y, frame) {
+  const ctx = map.ctx;
+  ctx.fillStyle = "#e9f0ff";
+  ctx.fillRect(x + 6, y + 3, 8, 8);
+  ctx.fillStyle = "#2f6fff";
+  ctx.fillRect(x + 5, y + 11, 10, 7);
+  ctx.fillStyle = frame % 20 < 10 ? "#f8c85b" : "#ff8da8";
+  ctx.fillRect(x + 8, y + 0, 4, 3);
+}
+
+function renderMapScene() {
+  const ctx = map.ctx;
+  const { width, height } = elements.mapCanvas;
+  ctx.clearRect(0, 0, width, height);
+
 }
 
 function updateCompletionLog(user, completed) {
@@ -471,6 +695,7 @@ function init() {
   elements.loginForm.addEventListener("submit", login);
   elements.logoutBtn.addEventListener("click", logout);
   elements.questForm.addEventListener("submit", onQuestSubmit);
+  elements.questList.addEventListener("change", onQuestListChange);
   elements.questFilter.addEventListener("change", render);
   elements.questList.addEventListener("change", onQuestListChange);
   elements.questList.addEventListener("click", onQuestListClick);

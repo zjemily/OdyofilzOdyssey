@@ -32,6 +32,30 @@
           <div><p>XP</p><strong id="xp-value">0</strong></div>
           <div><p>Completed</p><strong id="completed-value">0</strong></div>
           <div><p>Active Quests</p><strong id="active-quests-value">0</strong></div>
+        </div>
+        <div class="xp-track"><div id="xp-bar"></div></div>
+      </section>
+
+      <section class="panel">
+        <h2>Add Quest</h2>
+        <form id="quest-form" class="stack-form">
+          <input id="quest-title" type="text" placeholder="Quest title" required />
+          <textarea id="quest-detail" placeholder="Describe the objective" rows="3"></textarea>
+          <button type="submit">Add Quest</button>
+        </form>
+      </section>
+
+      <section class="panel">
+        <h2>Quest Log</h2>
+        <ul id="quest-list" class="quest-list"></ul>
+      </section>
+
+      <section class="panel">
+        <h2>Projects & Categories</h2>
+        <div id="category-list" class="category-list"></div>
+      </section>
+
+      <section class="panel">
           <div><p>Daily Streak</p><strong id="streak-value">0</strong></div>
           <div><p>High Priority</p><strong id="high-priority-value">0</strong></div>
         </div>
