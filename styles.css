@@ -121,9 +121,14 @@ button {
   flex-direction: column;
 }
 
+.wrap {
+  flex-wrap: wrap;
+}
+
 input,
 textarea,
-button {
+button,
+select {
   border-radius: 8px;
   border: 1px solid var(--border);
   background: #121633;
@@ -167,6 +172,12 @@ button.ghost {
   gap: 0.5rem;
 }
 
+.quest-item__action {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
 .quest-item small,
 .npc-intro,
 .category-list p {
@@ -187,6 +198,30 @@ button.ghost {
   padding: 0.1rem 0.45rem;
 }
 
+.badge--high {
+  border-color: #ff8a9d;
+  color: #ffc8d2;
+}
+
+.badge--overdue {
+  border-color: #ff6f8f;
+  color: #ff9fb4;
+}
+
+.danger {
+  background: transparent;
+  border: 1px solid var(--danger);
+  color: #ffc6d3;
+  padding: 0.25rem 0.5rem;
+}
+
+.field-label {
+  display: grid;
+  gap: 0.2rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
 .category-list {
   display: grid;
   gap: 0.6rem;
@@ -198,6 +233,7 @@ button.ghost {
   padding: 0.6rem;
 }
 
+.quest-log-head,
 .map-header {
   display: flex;
   justify-content: space-between;
