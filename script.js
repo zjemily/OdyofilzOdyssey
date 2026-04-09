@@ -10,6 +10,9 @@ const elements = {
   questForm: document.querySelector("#quest-form"),
   questTitle: document.querySelector("#quest-title"),
   questDetail: document.querySelector("#quest-detail"),
+  questPriority: document.querySelector("#quest-priority"),
+  questDue: document.querySelector("#quest-due"),
+  questFilter: document.querySelector("#quest-filter"),
   questList: document.querySelector("#quest-list"),
   categoryList: document.querySelector("#category-list"),
   suggestionList: document.querySelector("#suggestion-list"),
@@ -17,6 +20,8 @@ const elements = {
   levelValue: document.querySelector("#level-value"),
   completedValue: document.querySelector("#completed-value"),
   activeQuestsValue: document.querySelector("#active-quests-value"),
+  streakValue: document.querySelector("#streak-value"),
+  highPriorityValue: document.querySelector("#high-priority-value"),
   xpBar: document.querySelector("#xp-bar"),
   mapStatus: document.querySelector("#map-status"),
   mapCanvas: document.querySelector("#map-canvas"),
@@ -34,6 +39,10 @@ const map = {
   tick: 0,
 };
 
+function todayISO() {
+  return new Date().toISOString().split("T")[0];
+}
+
 function createUserState(username) {
   return {
     username,
@@ -41,6 +50,7 @@ function createUserState(username) {
     completedCount: 0,
     quests: [],
     categories: {},
+    completionLog: [],
     suggestions: [
       "Break your biggest quest into 2 subtasks.",
       "Schedule a 25-minute focus sprint.",
@@ -82,14 +92,25 @@ function categorizeQuest(title, detail) {
 function suggestSubtasks(quest) {
   return [
     `Clarify the first concrete step for "${quest.title}".`,
-    `Estimate time needed and choose a start block.`,
-    `Define done criteria for this quest.`,
+    "Estimate time needed and choose a start block.",
+    "Define done criteria for this quest.",
   ];
 }
 
 function buildNpcSuggestions(user) {
   const open = user.quests.filter((quest) => !quest.completed);
+  const overdue = open.filter((quest) => quest.dueDate && quest.dueDate < todayISO());
   const fresh = [];
+
+  if (overdue.length > 0) {
+    fresh.push(`You have ${overdue.length} overdue quest(s). Tackle one first for momentum.`);
+  }
+
+  const highPriority = open.find((quest) => quest.priority === "high");
+  if (highPriority) {
+    fresh.push(`High-priority focus: "${highPriority.title}". Protect a deep-work block for it.`);
+  }
+
   if (open.length === 0) {
     fresh.push("Add a new main quest to keep momentum.");
   } else {
@@ -100,6 +121,7 @@ function buildNpcSuggestions(user) {
   if (open.length > 3) {
     fresh.push("You have many active quests. Complete one quick-win quest for easy XP.");
   }
+
   return [...fresh, ...user.suggestions].slice(0, 6);
 }
 
@@ -112,7 +134,13 @@ function ensureUser() {
   return users[currentUser];
 }
 
-function addQuest(title, detail) {
+function calculateXpReward(detail, priority) {
+  const detailBoost = Math.min(detail.length, 120) / 6;
+  const priorityBonus = { low: 0, medium: 10, high: 20 }[priority] || 0;
+  return 30 + detailBoost + priorityBonus;
+}
+
+function addQuest(title, detail, priority, dueDate) {
   const user = ensureUser();
   if (!user) return;
   const category = categorizeQuest(title, detail);
@@ -121,8 +149,10 @@ function addQuest(title, detail) {
     title,
     detail,
     category,
+    priority,
+    dueDate,
     completed: false,
-    xpReward: 30 + Math.min(detail.length, 120) / 6,
+    xpReward: calculateXpReward(detail, priority),
     createdAt: Date.now(),
   };
   user.quests.unshift(quest);
@@ -130,6 +160,34 @@ function addQuest(title, detail) {
   user.suggestions = buildNpcSuggestions(user);
   saveUsers();
   render();
+}
+
+function updateCompletionLog(user, completed) {
+  if (!completed) return;
+  const today = todayISO();
+  if (!user.completionLog.includes(today)) {
+    user.completionLog.push(today);
+  }
+}
+
+function calculateStreak(user) {
+  const uniqueDays = [...new Set(user.completionLog)].sort();
+  if (uniqueDays.length === 0) return 0;
+
+  let streak = 0;
+  let cursor = new Date(todayISO());
+
+  while (true) {
+    const cursorISO = cursor.toISOString().split("T")[0];
+    if (uniqueDays.includes(cursorISO)) {
+      streak += 1;
+      cursor.setDate(cursor.getDate() - 1);
+      continue;
+    }
+    break;
+  }
+
+  return streak;
 }
 
 function toggleQuest(questId) {
@@ -142,11 +200,34 @@ function toggleQuest(questId) {
   if (!wasCompleted && quest.completed) {
     user.xp += Math.floor(quest.xpReward);
     user.completedCount += 1;
+    updateCompletionLog(user, true);
     map.mode = "battle";
   } else if (wasCompleted && !quest.completed) {
     user.xp = Math.max(0, user.xp - Math.floor(quest.xpReward));
     user.completedCount = Math.max(0, user.completedCount - 1);
   }
+  user.suggestions = buildNpcSuggestions(user);
+  saveUsers();
+  render();
+}
+
+function deleteQuest(questId) {
+  const user = ensureUser();
+  if (!user) return;
+  const idx = user.quests.findIndex((quest) => quest.id === questId);
+  if (idx === -1) return;
+  const [removed] = user.quests.splice(idx, 1);
+
+  if (removed.completed) {
+    user.xp = Math.max(0, user.xp - Math.floor(removed.xpReward));
+    user.completedCount = Math.max(0, user.completedCount - 1);
+  }
+
+  user.categories = user.quests.reduce((acc, quest) => {
+    acc[quest.category] = (acc[quest.category] || 0) + 1;
+    return acc;
+  }, {});
+
   user.suggestions = buildNpcSuggestions(user);
   saveUsers();
   render();
@@ -165,24 +246,47 @@ function renderAuth() {
 function renderStats(user) {
   const level = getLevel(user.xp);
   const inLevel = xpIntoLevel(user.xp);
-  const openCount = user.quests.filter((quest) => !quest.completed).length;
+  const open = user.quests.filter((quest) => !quest.completed);
+  const openCount = open.length;
+  const highPriorityCount = open.filter((quest) => quest.priority === "high").length;
+  const streak = calculateStreak(user);
 
   elements.levelValue.textContent = String(level);
   elements.xpValue.textContent = String(user.xp);
   elements.completedValue.textContent = String(user.completedCount);
   elements.activeQuestsValue.textContent = String(openCount);
+  elements.streakValue.textContent = `${streak} day${streak === 1 ? "" : "s"}`;
+  elements.highPriorityValue.textContent = String(highPriorityCount);
   elements.xpBar.style.width = `${(inLevel / 120) * 100}%`;
 
   map.mode = user.completedCount > 0 ? "village" : "camp";
 }
 
+function formatDate(dateText) {
+  if (!dateText) return "No due date";
+  const dt = new Date(`${dateText}T00:00:00`);
+  return dt.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+}
+
+function matchesFilter(quest, filterValue) {
+  if (filterValue === "active") return !quest.completed;
+  if (filterValue === "completed") return quest.completed;
+  if (filterValue === "overdue") return !quest.completed && quest.dueDate && quest.dueDate < todayISO();
+  return true;
+}
+
 function renderQuests(user) {
   elements.questList.innerHTML = "";
-  if (user.quests.length === 0) {
-    elements.questList.innerHTML = "<li class='quest-item'>No quests yet. Start your first adventure.</li>";
+  const filterValue = elements.questFilter.value;
+  const filtered = user.quests.filter((quest) => matchesFilter(quest, filterValue));
+
+  if (filtered.length === 0) {
+    elements.questList.innerHTML = `<li class='quest-item'>No quests for <strong>${filterValue}</strong>. Try another filter.</li>`;
     return;
   }
-  user.quests.forEach((quest) => {
+
+  filtered.forEach((quest) => {
+    const overdue = !quest.completed && quest.dueDate && quest.dueDate < todayISO();
     const li = document.createElement("li");
     li.className = "quest-item";
     li.innerHTML = `
@@ -191,11 +295,17 @@ function renderQuests(user) {
           <input type="checkbox" data-quest-id="${quest.id}" ${quest.completed ? "checked" : ""} />
           <strong>${quest.title}</strong>
         </label>
-        <span>${Math.floor(quest.xpReward)} XP</span>
+        <div class="quest-item__action">
+          <span>${Math.floor(quest.xpReward)} XP</span>
+          <button class="danger" data-delete-id="${quest.id}" type="button">Delete</button>
+        </div>
       </div>
       <small>${quest.detail || "No extra detail."}</small>
       <div class="quest-item__meta">
         <span class="badge">${quest.category}</span>
+        <span class="badge ${quest.priority === "high" ? "badge--high" : ""}">${quest.priority} priority</span>
+        <span class="badge">Due: ${formatDate(quest.dueDate)}</span>
+        ${overdue ? '<span class="badge badge--overdue">Overdue</span>' : ""}
         <span class="badge">${quest.completed ? "Completed" : "Active"}</span>
       </div>
     `;
@@ -263,6 +373,8 @@ function logout() {
   elements.xpValue.textContent = "0";
   elements.completedValue.textContent = "0";
   elements.activeQuestsValue.textContent = "0";
+  elements.streakValue.textContent = "0";
+  elements.highPriorityValue.textContent = "0";
   elements.xpBar.style.width = "0%";
 }
 
@@ -271,16 +383,26 @@ function onQuestSubmit(event) {
   if (!currentUser) return;
   const title = elements.questTitle.value.trim();
   const detail = elements.questDetail.value.trim();
+  const priority = elements.questPriority.value;
+  const dueDate = elements.questDue.value;
   if (!title) return;
-  addQuest(title, detail);
+  addQuest(title, detail, priority, dueDate);
   elements.questTitle.value = "";
   elements.questDetail.value = "";
+  elements.questPriority.value = "medium";
+  elements.questDue.value = "";
 }
 
 function onQuestListChange(event) {
   const input = event.target;
   if (!input.matches("input[data-quest-id]")) return;
   toggleQuest(input.dataset.questId);
+}
+
+function onQuestListClick(event) {
+  const button = event.target.closest("button[data-delete-id]");
+  if (!button) return;
+  deleteQuest(button.dataset.deleteId);
 }
 
 function drawTile(x, y, color) {
@@ -349,7 +471,9 @@ function init() {
   elements.loginForm.addEventListener("submit", login);
   elements.logoutBtn.addEventListener("click", logout);
   elements.questForm.addEventListener("submit", onQuestSubmit);
+  elements.questFilter.addEventListener("change", render);
   elements.questList.addEventListener("change", onQuestListChange);
+  elements.questList.addEventListener("click", onQuestListClick);
 
   if (!currentUser) logout();
   else render();
