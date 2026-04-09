@@ -56,6 +56,52 @@
       </section>
 
       <section class="panel">
+          <div><p>Daily Streak</p><strong id="streak-value">0</strong></div>
+          <div><p>High Priority</p><strong id="high-priority-value">0</strong></div>
+        </div>
+        <div class="xp-track"><div id="xp-bar"></div></div>
+      </section>
+
+      <section class="panel">
+        <h2>Add Quest</h2>
+        <form id="quest-form" class="stack-form">
+          <input id="quest-title" type="text" placeholder="Quest title" required />
+          <textarea id="quest-detail" placeholder="Describe the objective" rows="3"></textarea>
+          <div class="inline-form wrap">
+            <label class="field-label">Priority
+              <select id="quest-priority">
+                <option value="low">Low</option>
+                <option value="medium" selected>Medium</option>
+                <option value="high">High</option>
+              </select>
+            </label>
+            <label class="field-label">Due date
+              <input id="quest-due" type="date" />
+            </label>
+          </div>
+          <button type="submit">Add Quest</button>
+        </form>
+      </section>
+
+      <section class="panel">
+        <div class="quest-log-head">
+          <h2>Quest Log</h2>
+          <select id="quest-filter" aria-label="Filter quests by status">
+            <option value="all">All</option>
+            <option value="active">Active</option>
+            <option value="completed">Completed</option>
+            <option value="overdue">Overdue</option>
+          </select>
+        </div>
+        <ul id="quest-list" class="quest-list"></ul>
+      </section>
+
+      <section class="panel">
+        <h2>Projects & Categories</h2>
+        <div id="category-list" class="category-list"></div>
+      </section>
+
+      <section class="panel">
         <h2>AI Companion NPC</h2>
         <p class="npc-intro">Lyra reviews your quests and proposes useful next steps.</p>
         <ul id="suggestion-list" class="suggestion-list"></ul>
